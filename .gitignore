@@ -1,0 +1,6 @@
+.vscode
+.DS_Store
+dist/debug
+files/
+files.zip
+ideas.txt
