@@ -19,10 +19,10 @@
 #include <string.h>
 #include <math.h>
 
-/* The app's own data folder; its name must match the appid in application.fam. */
-#define APP_DATA_DIR    EXT_PATH("apps_data/moon_lander")
-#define HIGH_SCORE_PATH APP_DATA_DIR "/score.bin"
-#define SETTINGS_PATH   APP_DATA_DIR "/settings.bin"
+/* In the app's own data folder, /ext/apps_data/<appid>, which the storage
+ * service creates when a file in it is opened. */
+#define HIGH_SCORE_PATH APP_DATA_PATH("score.bin")
+#define SETTINGS_PATH   APP_DATA_PATH("settings.bin")
 #define SETTINGS_VERSION 3
 
 #include "moon_lander.h"
@@ -37,8 +37,8 @@
  * serial link (~6 ms per frame), and the firmware busy-waits on both. That
  * load starves its lowest-priority thread, which delivers our ticks and key
  * releases. Physics still runs every tick; the VGM repeats each frame on
- * the TV. 28 ms = every 2nd 16 ms tick (~31 fps); 66 ms (~15 fps) still
- * covers the 2.5-3 Hz banner and crash-flash blinking. */
+ * the TV. 28 ms = every 2nd 16 ms tick (~31 fps); 66 ms = every 5th tick
+ * (~12 fps) still covers the 2.5-3 Hz banner and crash-flash blinking. */
 #define FRAME_MS       28
 #define STILL_FRAME_MS 66
 
@@ -118,7 +118,6 @@ static void high_score_load(int* hs, uint16_t* seed) {
 
 static void high_score_save(int hs, uint16_t seed) {
     Storage* storage = furi_record_open(RECORD_STORAGE);
-    storage_simply_mkdir(storage, APP_DATA_DIR);
     File* file = storage_file_alloc(storage);
     if(storage_file_open(file, HIGH_SCORE_PATH, FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
         storage_file_write(file, &hs, sizeof(int));
@@ -230,7 +229,6 @@ static void settings_load(AppModel* m) {
 
 static void settings_save(const AppModel* m) {
     Storage* storage = furi_record_open(RECORD_STORAGE);
-    storage_simply_mkdir(storage, APP_DATA_DIR);
     File* file = storage_file_alloc(storage);
     if(storage_file_open(file, SETTINGS_PATH, FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
         SavedSettings s = settings_snapshot(m);
@@ -445,6 +443,8 @@ static void draw_callback(Canvas* canvas, void* ctx) {
                 "tweaked by");
             canvas_draw_str_aligned(canvas, SCREEN_W / 2, 36, AlignCenter, AlignTop,
                 "FToThe3rdPower.");
+            canvas_draw_str_aligned(canvas, SCREEN_W / 2, 46, AlignCenter, AlignTop,
+                "GPL-3.0, no warranty");
             canvas_draw_str_aligned(canvas, SCREEN_W / 2, SCREEN_H - 1,
                 AlignCenter, AlignBottom, "Back to return");
             break;
@@ -580,6 +580,10 @@ static void set_screen(App* app, Screen new_screen) {
         if(m->vgm) { vgm_tilt_free(m->vgm); m->vgm = NULL; }
     }
     m->screen = new_screen;
+    /* Tutorial popups belong to the tutorial screen. Back on one leaves with
+     * the flag still set, and handle_tick would then never tick the next
+     * game. */
+    if(new_screen != ScreenTutorial) m->tutorial_popup_showing = false;
     if(new_live && !old_live) {
         game_audio_start();
         if(new_screen == ScreenTutorial) {

@@ -76,9 +76,9 @@ drifts mid-flight, tap Back, hold the Flipper upright and pick Zero tilt.
 For Custom, scroll the Difficulty row in Settings to Custom, then press OK to
 set each limit (it can't be looser than Easy).
 
-Only a pad's own width is flattened, so any flat ground is a pad (3× and 5×
-pads are narrower). Touching down off a pad crashes, and the banner says
-"Missed the pad".
+Pads are the flat strips with a 1×, 2×, 3× or 5× label, and only a pad's own
+width is flattened (3× and 5× pads are narrower). Touching down anywhere else,
+even on a naturally flat spot, crashes, and the banner says "Missed the pad".
 
 ## Seeds
 Settings → Seed picks the world. Each seed from 1 to 9999 generates its own
@@ -99,7 +99,7 @@ Flipper only streams its 128×64 frame. The firmware
 must accept, and repeats each Flipper row on 3 lines to fill more of the
 screen.
 
-In-game frames are drawn at ~31 fps (~15 fps while a banner or popup is up);
+In-game frames are drawn at ~31 fps (~12 fps while a banner or popup is up);
 physics still runs at 60 Hz. Each frame is sent to the TV over a serial link,
 and drawing fewer of them leaves the Flipper time for input.
 
@@ -169,7 +169,7 @@ With Debug HUD on, everything except `S` is also logged at 6 Hz under
 - [x] Crash/landing banner — shows Vx and Vy at touchdown (plus the angle when it caused the crash); bad values blink on crash
 - [x] 20% dim overlay behind status banners
 - [x] Tutorial — 2 levels: flat terrain, full-width pad, ½ gravity (level 1) → full gravity, two pads at ⅓ and ⅔ width (level 2)
-- [x] Tutorial intro and transition popups adapt to the selected thrust mode and difficulty
+- [x] Tutorial intro popup adapts to the selected thrust mode and difficulty
 - [x] Settings screen — Sound, Vibration, Difficulty, Thrust button, Seed, TV mode, Debug HUD, with a scrollbar; settings and menu choices are saved to the SD card
 - [x] App icon
 - [x] Persisted high score with the seed it was set on (saved to SD card; open it from the lander icon on the menu)

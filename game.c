@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <gui/canvas.h>
+#include <furi_hal_rtc.h>
 #include <furi_hal_speaker.h>
 #include <furi_hal_vibro.h>
 
@@ -495,7 +496,7 @@ GameAction game_input(GameState* g, const InputEvent* ev, ThrustMode thrust_mode
             int score = g->score;
             int next_fuel = (mode == FuelModeFull) ? (int)START_FUEL : (int)g->fuel;
             game_init(g, next, score, mode, next_fuel, diff);
-        } else if (g->status == GameStatusCrashed || g->status == GameStatusOutOfFuel) {
+        } else if (g->status == GameStatusCrashed) {
             FuelMode mode = g->fuel_mode;
             Difficulty diff = g->difficulty;
             int score = g->score;
@@ -613,6 +614,10 @@ void game_tick(GameState* g, ThrustMode mode, float dt) {
         if(g->left_held)  g->angle -= ROT_RATE * dt;
         if(g->right_held) g->angle += ROT_RATE * dt;
     }
+    /* Keep the angle within -180..180 degrees, so a full turn counts as
+     * upright again for the landing check, not just on the HUD. */
+    if(g->angle > 3.14159265f) g->angle -= 2.0f * 3.14159265f;
+    else if(g->angle < -3.14159265f) g->angle += 2.0f * 3.14159265f;
 
     /* Thrust level (0..1) per mode. */
     g->current_thrust = 0.0f;
@@ -857,8 +862,7 @@ static void draw_hud(Canvas* canvas, const GameState* g) {
 bool game_banner_visible(const GameState* g) {
     if (g->status == GameStatusFlying) return false;
     /* Hold off the banner while the crash flash is still going. */
-    return !((g->status == GameStatusCrashed || g->status == GameStatusOutOfFuel) &&
-             g->status_time < FLASH_DURATION);
+    return !(g->status == GameStatusCrashed && g->status_time < FLASH_DURATION);
 }
 
 static void draw_status_banner(Canvas* canvas, const GameState* g) {
@@ -877,14 +881,10 @@ static void draw_status_banner(Canvas* canvas, const GameState* g) {
             line1 = "CRASHED";
             line2 = "OK: retry  Back: menu";
             break;
-        case GameStatusOutOfFuel:
-            line1 = "NO FUEL";
-            line2 = "OK: retry  Back: menu";
-            break;
         default: break;
     }
 
-    bool is_crash   = (g->status == GameStatusCrashed || g->status == GameStatusOutOfFuel);
+    bool is_crash   = (g->status == GameStatusCrashed);
     bool vx_bad     = fabsf(g->land_vx)    >= g->safe_vx;
     bool vy_bad     = fabsf(g->land_vy)    >= g->safe_vy;
     bool angle_bad  = is_crash && fabsf(g->land_angle) >= g->safe_angle;
@@ -1073,8 +1073,7 @@ void game_draw(Canvas* canvas, const GameState* g) {
      * phases for FLASH_DURATION. FLASH_PHASE_HZ controls how often it flips —
      * lower number = slower flashing. 2.5 Hz = 400 ms per phase. HUD draws
      * on top unaffected so the player can still read what's going on. */
-    if ((g->status == GameStatusCrashed || g->status == GameStatusOutOfFuel) &&
-        g->status_time < FLASH_DURATION) {
+    if (g->status == GameStatusCrashed && g->status_time < FLASH_DURATION) {
         const float FLASH_PHASE_HZ = 2.5f;
         int phase = (int)(g->status_time * FLASH_PHASE_HZ) % 2;
         if (phase == 1) {
@@ -1197,6 +1196,13 @@ void game_audio_update(const GameState* g, ThrustMode mode, SoundLevel sound_lev
     }
 
     if(sound_level == SoundOff) target_freq = 0;
+
+    /* The Flipper's Stealth mode silences the speaker and vibration, as it
+     * does for the system's own notifications. */
+    if(furi_hal_rtc_is_flag_set(FuriHalRtcFlagStealthMode)) {
+        target_freq = 0;
+        vibro_any = false;
+    }
 
     /* Software PWM for intensity. Counter resets on silence so every new
      * burst (crash, tap, thrust) always starts on the "on" tick. */

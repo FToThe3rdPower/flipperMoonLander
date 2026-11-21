@@ -11,7 +11,6 @@ typedef enum {
     GameStatusFlying = 0,
     GameStatusLanded,
     GameStatusCrashed,
-    GameStatusOutOfFuel,  // separate from crashed so we can show a different banner
 } GameStatus;
 
 typedef enum {
