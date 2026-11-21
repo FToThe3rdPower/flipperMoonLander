@@ -433,6 +433,13 @@ static GameAction pause_input(GameState* g, const InputEvent* ev) {
     return GameActionNone;
 }
 
+/* One tank: landing with less than 1 fuel left ends the game, that mode's
+ * natural final state. Landing on the last level still wins. */
+static bool one_tank_game_over(const GameState* g) {
+    return g->status == GameStatusLanded && !g->is_tutorial &&
+           g->fuel_mode != FuelModeFull && (int)g->fuel <= 0 && g->level < HIGHEST_LEVEL;
+}
+
 GameAction game_input(GameState* g, const InputEvent* ev, ThrustMode thrust_mode) {
     if (ev->key == InputKeyBack) {
         if (g->status == GameStatusFlying) {
@@ -490,6 +497,9 @@ GameAction game_input(GameState* g, const InputEvent* ev, ThrustMode thrust_mode
         if (g->status == GameStatusLanded) {
             int next = g->level + 1;
             if (next > HIGHEST_LEVEL) return GameActionWin;
+            /* The banner says the game is over; OK goes back to the menu,
+             * which keeps a new high score. */
+            if (one_tank_game_over(g)) return GameActionExitToMenu;
             /* Capture campaign state before memset wipes it. */
             FuelMode mode = g->fuel_mode;
             Difficulty diff = g->difficulty;
@@ -868,14 +878,21 @@ bool game_banner_visible(const GameState* g) {
 static void draw_status_banner(Canvas* canvas, const GameState* g) {
     if (!game_banner_visible(g)) return;
 
+    bool game_over = one_tank_game_over(g);
     const char* line1 = "";
     const char* line2 = "";
     switch (g->status) {
         case GameStatusLanded:
             line1 = "LANDED!";
-            line2 = (g->is_tutorial && g->level >= 2)
-                  ? "OK: done  Back: menu"
-                  : "OK: next  Back: menu";
+            if (game_over) {
+                line2 = "OK / Back: menu";
+            } else {
+                /* "done" when OK ends the run: the tutorial's last level or
+                 * level 30. */
+                line2 = (g->is_tutorial ? g->level >= 2 : g->level >= HIGHEST_LEVEL)
+                      ? "OK: done  Back: menu"
+                      : "OK: next  Back: menu";
+            }
             break;
         case GameStatusCrashed:
             line1 = "CRASHED";
@@ -892,8 +909,9 @@ static void draw_status_banner(Canvas* canvas, const GameState* g) {
     bool blink_hide = is_crash && (((int)(g->status_time * 3.0f) % 2) == 1);
 
     /* Banner grows a line when the angle, or missing the pad, caused the
-     * crash. Both at once: the angle gets the line. */
-    bool reason_line = angle_bad || pad_bad;
+     * crash (both at once: the angle gets the line), and for the one-tank
+     * game over, which shows "Game over" and the final score. */
+    bool reason_line = angle_bad || pad_bad || game_over;
     int bx = 14, bw = SCREEN_W - 28;
     int by = reason_line ? 10 : 14;
     int bh = reason_line ? 44 : 36;
@@ -907,23 +925,32 @@ static void draw_status_banner(Canvas* canvas, const GameState* g) {
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str_aligned(canvas, SCREEN_W / 2, by + 8, AlignCenter, AlignCenter, line1);
 
-    /* Line 2 — velocities; offending values blink on crash */
-    char buf[16];
+    /* Line 2 — velocities; offending values blink on crash. The game over
+     * says so here instead. */
+    char buf[24];
     canvas_set_font(canvas, FontSecondary);
     int vel_y = by + (reason_line ? 19 : 20);
-    if(!(vx_bad && blink_hide)) {
-        snprintf(buf, sizeof(buf), "Vx:%+d", (int)g->land_vx);
-        canvas_draw_str_aligned(canvas, SCREEN_W / 2 - 3, vel_y, AlignRight, AlignCenter, buf);
-    }
-    if(!(vy_bad && blink_hide)) {
-        snprintf(buf, sizeof(buf), "Vy:%+d", -(int)g->land_vy);
-        canvas_draw_str_aligned(canvas, SCREEN_W / 2 + 3, vel_y, AlignLeft, AlignCenter, buf);
+    if(game_over) {
+        canvas_draw_str_aligned(canvas, SCREEN_W / 2, vel_y, AlignCenter, AlignCenter, "Game over");
+    } else {
+        if(!(vx_bad && blink_hide)) {
+            snprintf(buf, sizeof(buf), "Vx:%+d", (int)g->land_vx);
+            canvas_draw_str_aligned(canvas, SCREEN_W / 2 - 3, vel_y, AlignRight, AlignCenter, buf);
+        }
+        if(!(vy_bad && blink_hide)) {
+            snprintf(buf, sizeof(buf), "Vy:%+d", -(int)g->land_vy);
+            canvas_draw_str_aligned(canvas, SCREEN_W / 2 + 3, vel_y, AlignLeft, AlignCenter, buf);
+        }
     }
 
-    /* Line 3 — the angle when it was a cause, else "Missed the pad"; blinks.
-     * Layout: [θ][:NN][°][R/L] — θ and ° drawn as pixel-art, ASCII measured
-     * with canvas_string_width so the whole thing centers correctly. */
-    if(angle_bad && !blink_hide) {
+    /* Line 3 — the final score on the game over; else the angle when it was
+     * a cause, else "Missed the pad"; those two blink.
+     * Angle layout: [θ][:NN][°][R/L] — θ and ° drawn as pixel-art, ASCII
+     * measured with canvas_string_width so the whole thing centers correctly. */
+    if(game_over) {
+        snprintf(buf, sizeof(buf), "Score: %d", g->score);
+        canvas_draw_str_aligned(canvas, SCREEN_W / 2, by + 29, AlignCenter, AlignCenter, buf);
+    } else if(angle_bad && !blink_hide) {
         int deg = (int)(fabsf(g->land_angle) * (180.0f / 3.14159265f) + 0.5f);
         char dir_str[2] = {(g->land_angle >= 0.0f) ? 'R' : 'L', '\0'};
         snprintf(buf, sizeof(buf), ":%d", deg);
@@ -1008,9 +1035,9 @@ void game_draw_tutorial_popup(Canvas* canvas, int tut_level, ThrustMode thrust_m
         /* Criteria line: dynamic values from difficulty */
         char prefix[20];
         snprintf(prefix, sizeof(prefix), "Vy<%d  Vx<%d  ", (int)g->safe_vy, (int)g->safe_vx);
-        char angle_str[8];
-        int angle_deg = (int)(g->safe_angle * (180.0f / 3.14159265f) + 0.5f);
-        snprintf(angle_str, sizeof(angle_str), "<%d", angle_deg);
+        char angle_str[16];
+        int angle_tenths = (int)(g->safe_angle * (1800.0f / 3.14159265f) + 0.5f);
+        snprintf(angle_str, sizeof(angle_str), "<%d.%d", angle_tenths / 10, angle_tenths % 10);
         int prefix_w    = (int)canvas_string_width(canvas, prefix);
         int angle_str_w = (int)canvas_string_width(canvas, angle_str);
         int total_w = prefix_w + 6 + angle_str_w + 4;

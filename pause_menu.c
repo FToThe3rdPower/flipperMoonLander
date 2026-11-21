@@ -21,7 +21,7 @@ static PauseRow row_at(const PauseMenu* p, int i) {
 static const char* row_label(PauseRow row) {
     switch(row) {
         case PauseRowZeroTilt: return "Zero tilt";
-        case PauseRowQuit:     return "Quit to menu";
+        case PauseRowQuit:     return "Back to menu";
         default:               return "Resume";
     }
 }

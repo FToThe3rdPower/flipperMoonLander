@@ -9,7 +9,7 @@ Fly your lander down to a landing pad before the fuel runs out. Touch down slowl
 - Your score comes from the fuel you have left and the pad's multiplier
 - Three button thrust modes: Tap Impulse (tap for a burst), Binary (hold) and Ramp (hold and the thrust builds), on Up or OK
 - Four tilt modes for the Video Game Module (the "Vidya module" modes on the menu): tilt the Flipper to steer, and in Full Tilt mode tilt it forward to fire the engine
-- Fuel modes: refuel every level, or one tank for the whole game (500, 350 or 200)
+- Fuel modes: refuel every level, or one tank for the whole game (500, 350 or 200); landing with an empty tank ends the run
 - Difficulty presets (Easy, Medium, Hard, Realistic), or set your own landing limits
 - Sound and vibration, each Off, Low, Med or High
 - High score and settings are saved to the SD card

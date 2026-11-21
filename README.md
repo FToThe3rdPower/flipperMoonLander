@@ -67,10 +67,10 @@ drifts mid-flight, tap Back, hold the Flipper upright and pick Zero tilt.
 
 | Difficulty | Vy limit | Vx limit | Angle limit |
 |------------|----------|----------|-------------|
-| Easy       | < 16     | < 8      | < 25°       |
-| Medium     | < 8      | < 4      | < 13°       |
-| Hard       | < 4      | < 2      | < 6°        |
-| Realistic  | < 1      | < 1      | < 3°        |
+| Easy       | < 16     | < 8      | < 25.2°     |
+| Medium     | < 8      | < 4      | < 12.6°     |
+| Hard       | < 4      | < 2      | < 6.3°      |
+| Realistic  | < 1      | < 1      | < 3.0°      |
 | Custom     | < 1–16   | < 1–8    | < 1–25°     |
 
 For Custom, scroll the Difficulty row in Settings to Custom, then press OK to
@@ -158,7 +158,7 @@ With Debug HUD on, everything except `S` is also logged at 6 Hz under
 - [x] Three button thrust modes: Button Tap Impulse (press), Button Binary (hold), Button Ramp (hold, ramps up)
 - [x] Thrust button: UP or OK, chosen in Settings
 - [x] Four Video Game Module "vidya" tilt control modes.
-- [x] Fuel campaign modes: Full refuel, or No-refuel (Easy 500 / Med 350 / Hard 200 total)
+- [x] Fuel campaign modes: Full refuel, or No-refuel (Easy 500 / Med 350 / Hard 200 total); landing with an empty tank ends the run
 - [x] Difficulty selector — scales safe-landing thresholds (Easy / Medium / Hard / Realistic / Custom)
 - [x] Distance-based pad multipliers: 1× (right below spawn), 2×, 3×, 5× (near edges)
 - [x] Scoring: `fuel × pad_multiplier × (HIGHEST_LEVEL − level + 1)`

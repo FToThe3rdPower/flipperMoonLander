@@ -13,6 +13,7 @@
 #include <gui/gui.h>
 #include <gui/elements.h>
 #include <input/input.h>
+#include <notification/notification_messages.h>
 #include <storage/storage.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -91,6 +92,8 @@ typedef struct {
     uint32_t last_tick_ms;
     uint32_t last_draw_tick;      // kernel tick of the last in-game redraw request
     volatile bool tick_pending;   // a tick is already in the queue; set by the timer, cleared by the loop
+    NotificationApp* notification;
+    bool backlight_forced;        // backlight held on while flying (see backlight_update)
     AppModel model;
 } App;
 
@@ -658,6 +661,17 @@ static void leave_game(App* app) {
 static void handle_input_event(App* app, const InputEvent* ev) {
     AppModel* m = &app->model;
 
+    /* Off the game screens OK is a click: it acts on Short only. An OK held
+     * through a screen change (say, as the thrust key while Back leaves the
+     * game) sends Long and Repeat but never Short, so it can't pick START or
+     * anything else until it's released and pressed again. The game screens
+     * have their own rule (ok_armed). */
+    bool live = (m->screen == ScreenGame || m->screen == ScreenTutorial);
+    if(!live && ev->key == InputKeyOk &&
+       (ev->type == InputTypeLong || ev->type == InputTypeRepeat)) {
+        return;
+    }
+
     switch (m->screen) {
         case ScreenMenu: {
             ThrustMode prev_thrust = m->menu.thrust_mode;
@@ -858,6 +872,26 @@ static void handle_tick(App* app, float dt) {
     }
 }
 
+/* While a level is being flown, keep the backlight on: Full Tilt needs no
+ * key presses, so the display would time out mid-descent. When the flight
+ * stops (a banner, the pause menu, a popup, or a screen change), hand the
+ * backlight back to the system and light it again, so its timeout starts
+ * from that moment instead of running out at once after a long level. */
+static void backlight_update(App* app) {
+    const AppModel* m = &app->model;
+    bool flying = (m->screen == ScreenGame || m->screen == ScreenTutorial) &&
+                  m->game.status == GameStatusFlying && !m->game.pause.open &&
+                  !m->tutorial_popup_showing;
+    if(flying == app->backlight_forced) return;
+    app->backlight_forced = flying;
+    if(flying) {
+        notification_message(app->notification, &sequence_display_backlight_enforce_on);
+    } else {
+        notification_message(app->notification, &sequence_display_backlight_enforce_auto);
+        notification_message(app->notification, &sequence_display_backlight_on);
+    }
+}
+
 /* ----- App entrypoint ---------------------------------------------------- */
 
 int32_t moon_lander_app(void* p) {
@@ -882,6 +916,7 @@ int32_t moon_lander_app(void* p) {
     view_port_input_callback_set(app->view_port, input_callback, app);
 
     app->gui = furi_record_open(RECORD_GUI);
+    app->notification = furi_record_open(RECORD_NOTIFICATION);
     gui_add_view_port(app->gui, app->view_port, GuiLayerFullscreen);
 
     uint32_t tick_freq = furi_kernel_get_tick_frequency();
@@ -919,6 +954,7 @@ int32_t moon_lander_app(void* p) {
             handle_tick(app, dt);
         }
 
+        backlight_update(app);
         furi_mutex_release(app->mutex);
         /* Off the game screens, redraw after every event. In-game, redraw only
          * on ticks, capped by FRAME_MS (STILL_FRAME_MS while a banner or the
@@ -943,6 +979,10 @@ int32_t moon_lander_app(void* p) {
     /* Belt-and-suspenders: if somehow we exit while still in-game, release
      * the speaker and turn off vibration so we don't leave it stuck. */
     game_audio_stop();
+    if(app->backlight_forced) {
+        notification_message(app->notification, &sequence_display_backlight_enforce_auto);
+    }
+    furi_record_close(RECORD_NOTIFICATION);
     gui_remove_view_port(app->gui, app->view_port);
     view_port_free(app->view_port);
     furi_record_close(RECORD_GUI);
